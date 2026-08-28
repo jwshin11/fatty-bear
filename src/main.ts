@@ -10,6 +10,9 @@ const SPEED = 150;
 const TABLE_END = 200;
 const DUDU_X = 30;
 
+type GameState = "menu" | "playing" | "gameOver";
+let state: GameState = "menu";
+
 let row = 0;
 let last = performance.now();
 
@@ -17,14 +20,63 @@ const rowHeight = canvas.height / ROWS;
 const rowY = (r: number) => r*rowHeight + (rowHeight - 120) / 2;
 
 window.addEventListener("keydown", function(event) {
-    if (event.code !== "ArrowUp" && event.code !== "ArrowDown") return;
+    if (state !== "playing") return;
+    if (event.code !== "ArrowUp" && event.code !== "ArrowDown" && event.code !== "Space") return;
     event.preventDefault();
     if (event.repeat) return;
-
+    
+    if (event.code == "Space") {
+        const fudu = new Fudu(TABLE_END - 50, row, ctx);
+        fudus.push(fudu);
+        return;
+    }
     const dir = event.code === "ArrowUp" ? -1 : 1;
     row = (row + dir + ROWS) % ROWS;
 });
 
+
+canvas.addEventListener("click", function() {
+    if (state !== "menu" && state !== "gameOver") return;
+    startGame();
+});
+
+function startGame() {
+    bubus = [];
+    fudus = [];
+    row = 0;
+    elapsedTime = 0;
+    interval = 1;
+    last = performance.now();
+    state = "playing";
+}
+
+function drawMenu() {
+    ctx.textAlign = "center";
+
+    ctx.fillStyle = "white";
+    ctx.font = "bold 64px sans-serif";
+    ctx.fillText("The Fudu Bear", canvas.width / 2, canvas.height / 2 - 20);
+
+    ctx.fillStyle = "#aaaaaa";
+    ctx.font = "24px sans-serif";
+    ctx.fillText("Click anywhere to start", canvas.width / 2, canvas.height / 2 + 30);
+
+    ctx.textAlign = "start";
+}
+
+function drawGameOver() {
+    ctx.textAlign = "center";
+
+    ctx.fillStyle = "white";
+    ctx.font = "bold 64px sans-serif";
+    ctx.fillText("Game Over", canvas.width / 2, canvas.height / 2 - 20);
+
+    ctx.fillStyle = "#aaaaaa";
+    ctx.font = "24px sans-serif";
+    ctx.fillText("Click anywhere to play again", canvas.width / 2, canvas.height / 2 + 30);
+
+    ctx.textAlign = "start";
+}
 
 function erase() {
     ctx.fillStyle = "#000000"
@@ -38,6 +90,7 @@ class Bubu {
     ctx: CanvasRenderingContext2D;
     pause: number = 0;
     move: number = 0;
+    isFatty: boolean = false;
 
     constructor(x: number, row: number, ctx: CanvasRenderingContext2D) {
         this.x = x;
@@ -48,7 +101,6 @@ class Bubu {
     update(dt: number): void {
         if (this.pause < 0.25) {
             this.pause += dt;
-            this.draw();
             return;
         } 
         this.x -= SPEED * dt;
@@ -57,14 +109,38 @@ class Bubu {
             this.move = 0;
             this.pause = 0;
         }
-        this.draw();
     }
 
     draw(): void {
-        if (this.x > TABLE_END) {
-            ctx.fillStyle = "green";
-            ctx.fillRect(this.x, rowY(this.row), 20, 20);
-        } else this.x = canvas.width;
+        ctx.fillStyle = "green";
+        ctx.fillRect(this.x, rowY(this.row), 20, 20);
+    }
+
+    isAngry(): boolean {
+        return this.x < TABLE_END;
+    }
+}
+
+class Fudu {
+    x: number;
+    row: number;
+    ctx: CanvasRenderingContext2D;
+    eaten: boolean = false;
+    wasted: boolean = false;
+
+    constructor(x: number, row: number, ctx: CanvasRenderingContext2D) {
+        this.x = x;
+        this.row = row;
+        this.ctx = ctx;
+    }
+
+    update(dt: number): void {
+        this.x += SPEED * dt;
+    }
+
+    draw(): void {
+        ctx.fillStyle = "blue";
+        ctx.fillRect(this.x, rowY(this.row), 15, 15);
     }
 }
 
@@ -81,18 +157,80 @@ function drawDudu(ctx: CanvasRenderingContext2D) {
 
 }
 
-const bubu1 = new Bubu(canvas.width, 0, ctx);
-const bubu2 = new Bubu(canvas.width, 1, ctx);
+let bubus: Bubu[] = [];
+let fudus: Fudu[] = [];
+
+function drawBubus() {
+    for (const bubu of bubus) bubu.draw();
+}
+
+function drawFudus() {
+    for (const fudu of fudus) fudu.draw();
+}
+
+
+let elapsedTime = 0;
+let interval = 1;
+
+function addBubu() {
+    if (elapsedTime < interval) return
+
+    interval = Math.random()*2;
+    elapsedTime = 0;
+    const randomRow = Math.floor(Math.random()*4);
+    const bubu = new Bubu(canvas.width, randomRow, ctx);
+    bubus.push(bubu);
+}
 
 function draw(now: number) {
+    // Time
     const dt = Math.min((now - last) / 1000, 0.05);
     last = now;
+
+    if (state === "menu") {
+        erase();
+        drawMenu();
+        window.requestAnimationFrame(draw);
+        return;
+    } else if (state === "gameOver") {
+        erase();
+        drawGameOver();
+        window.requestAnimationFrame(draw);
+        return;
+    }
+
+    elapsedTime += dt;
+
+    // Update
+    addBubu();
+    for (const fudu of fudus) {
+        if (fudu.x > canvas.width) {
+                state = "gameOver";
+                break;
+        }
+        for (const bubu of bubus) {
+            if (fudu.x > bubu.x - 10 && fudu.x < bubu.x + 10 && fudu.row === bubu.row) {
+                fudu.eaten = true;
+                bubu.isFatty = true;
+                break;
+            }
+
+        }
+    }
+
+    for (const bubu of bubus) bubu.update(dt);
+    bubus = bubus.filter(b => !b.isAngry() && !b.isFatty);
+    for (const fudu of fudus) fudu.update(dt);
+    fudus = fudus.filter(f => !f.eaten && !f.wasted);
+
     erase();
 
+    // Draw
     drawTables(ctx);
     drawDudu(ctx);
-    bubu1.update(dt);
-    bubu2.update(dt);
+    drawBubus();
+    drawFudus();
+
 
     window.requestAnimationFrame(draw);
 }
