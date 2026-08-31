@@ -5,8 +5,37 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Fatty Bear</title>
+    <style>
+      /* The canvas and the screen GIFs are stacked layers of the same 800x800
+         box. The GIFs animate in the DOM, which canvas 2d can't do on its own. */
+      #stage {
+        position: relative;
+        width: 1400px;
+        height: 800px;
+      }
+      .screen-gif {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        pointer-events: none; /* clicks must reach the canvas underneath */
+      }
+      /* Both sit above the canvas title text, which starts around y=340. */
+      #menu-gif {
+        top: 40px;
+        height: 300px; /* 211x374 portrait -> 169 wide */
+      }
+      #restart-gif {
+        top: 60px;
+        height: 260px; /* 474x265 landscape -> 465 wide */
+        display: none; /* the game opens on the menu */
+      }
+    </style>
   </head>
   <body>
+    <div id="stage">
+      <img id="menu-gif" class="screen-gif" src="gifs/menu.gif" alt="" />
+      <img id="restart-gif" class="screen-gif" src="gifs/restart.gif" alt="" />
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
