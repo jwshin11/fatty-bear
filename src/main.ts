@@ -110,11 +110,11 @@ function drawMenu() {
 
     ctx.fillStyle = "white";
     ctx.font = "bold 64px sans-serif";
-    ctx.fillText("The Fudu Bear", canvas.width / 2, canvas.height / 2 - 20);
+    ctx.fillText("The Fudu Bear", canvas.width / 2, canvas.height / 2 + 20);
 
     ctx.fillStyle = "#aaaaaa";
     ctx.font = "24px sans-serif";
-    ctx.fillText("Click anywhere to start", canvas.width / 2, canvas.height / 2 + 30);
+    ctx.fillText("Click anywhere to start", canvas.width / 2, canvas.height / 2 + 60);
 
     ctx.textAlign = "start";
 }
