@@ -2,14 +2,233 @@ import { SHEETS } from "./sprites";
 import type { SheetName } from "./sprites";
 
 const stage = document.getElementById("stage")!;
-const menuGif = document.getElementById("menu-gif") as HTMLImageElement;
-const restartGif = document.getElementById("restart-gif") as HTMLImageElement;
+const menuGifs = document.getElementById("menu-gifs")!;
+const restartGifs = document.getElementById("restart-gifs")!;
+
+// Every gif in gifs/menu/ goes on the menu, enumerated at build time so
+// adding or removing one there needs no edit here. Globbed from the source
+// folder rather than public/: public/ is copied verbatim and is not part of
+// the module graph, so it cannot be enumerated. Sorted for a stable order --
+// glob key order is not guaranteed.
+const MENU_GIFS = import.meta.glob("../gifs/menu/*.gif", {
+    eager: true,
+    query: "?url",
+    import: "default",
+}) as Record<string, string>;
+
+// Two gifs flank the title at fixed points; the rest are scattered at random
+// over whatever those two and the title leave free, rerolled on every load.
+// Coordinates are stage pixels, which match canvas pixels 1:1 -- the #stage
+// rule in index.html is these same numbers.
+const STAGE_W = 1400;
+const STAGE_H = 800;
+
+const ANCHOR_CX = 700;
+const ANCHOR_CY = 400;
+// How far out from centre the two side gifs sit. Pushed nearly to the stage
+// edge: the strip outside them is dead space, and giving it up leaves more
+// middle for the scatter.
+const ANCHOR_DX = 555;
+// Their drawn box, from the .ring-anchor height and these gifs' 211x374 shape.
+// A number rather than a measurement: the images have not loaded yet.
+const ANCHOR_W = 230;
+const ANCHOR_H = 400;
+
+// Two gifs are pinned either side of the title; the rest are scattered. Named
+// by file, so renaming one here is the whole change -- an unmatched name just
+// falls through to the scatter instead of erroring.
+const ANCHOR_LEFT = "menu.gif";
+const ANCHOR_RIGHT = "dudu-dancing-bubu-dudu-dancing.gif";
+
+const basename = (path: string) => path.slice(path.lastIndexOf("/") + 1);
+
+// Scattered gifs are all drawn at one height; their widths follow their own
+// aspect ratios, which is why placement waits for each to load (below). Both
+// heights are sized against their own screen's packing: at these values the
+// scatter places everything clear of everything else on the large majority of
+// loads, and otherwise nudges a single gif into one neighbour.
+const SCATTER_H = 135;
+const SCATTER_PAD = 10;
+const RESTART_SCATTER_H = 200;
+const RESTART_SCATTER_PAD = 14;
+
+// Roughly the canvas text on either screen -- title and the click-to-continue
+// line -- kept clear. The menu's sits a little lower than the game over one;
+// this covers both.
+const TEXT_BOX = { x: 420, y: 310, w: 560, h: 205 };
+
+type Rect = { x: number; y: number; w: number; h: number };
+
+// Area of the intersection, so a candidate spot can be scored rather than only
+// accepted or rejected -- see the fallback in scatter().
+const overlap = (a: Rect, b: Rect) =>
+    Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) *
+    Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+
+// A scatterer for one screen. `blocked` is whatever is already fixed on it --
+// the canvas text, the pinned gifs -- and every spot handed out joins that
+// list, so the gifs avoid each other too. Each screen builds its own: the menu
+// and the game over screen are never up at the same time, so their gifs have
+// no reason to avoid each other's.
+//
+// Rejection sampling. A clear spot ends the search immediately; failing that,
+// the least-overlapping try is used, so a crowded folder degrades into some
+// overlap rather than hanging or dropping gifs.
+const TRIES = 600;
+function makeScatter(blocked: Rect[], h: number, pad: number) {
+    const taken = [...blocked];
+    return (w: number): Rect => {
+        let best: Rect = { x: pad, y: pad, w, h };
+        let bestScore = Infinity;
+        for (let i = 0; i < TRIES; i++) {
+            const spot = {
+                x: pad + Math.random() * (STAGE_W - w - 2 * pad),
+                y: pad + Math.random() * (STAGE_H - h - 2 * pad),
+                w,
+                h,
+            };
+            // Scored with the padding included so neighbours keep a gap, but
+            // recorded unpadded, so the gap is not charged twice over against
+            // whatever gets placed next.
+            const padded = { x: spot.x - pad, y: spot.y - pad, w: w + 2 * pad, h: h + 2 * pad };
+            let score = 0;
+            for (const r of taken) score += overlap(padded, r);
+            if (score < bestScore) {
+                bestScore = score;
+                best = spot;
+            }
+            if (score === 0) break;
+        }
+        taken.push(best);
+        return best;
+    };
+}
+
+// The menu's anchor boxes have to be known before anything scatters around
+// them, so the anchors are picked out in full before any image is built.
+const menuAnchors = new Map<string, number>();
+const menuLoose: string[] = [];
+for (const path of Object.keys(MENU_GIFS).sort()) {
+    const name = basename(path);
+    if (name === ANCHOR_LEFT) menuAnchors.set(path, ANCHOR_CX - ANCHOR_DX);
+    else if (name === ANCHOR_RIGHT) menuAnchors.set(path, ANCHOR_CX + ANCHOR_DX);
+    else menuLoose.push(path);
+}
+
+const menuScatter = makeScatter(
+    [
+        TEXT_BOX,
+        ...[...menuAnchors.values()].map((cx) => ({
+            x: cx - ANCHOR_W / 2,
+            y: ANCHOR_CY - ANCHOR_H / 2,
+            w: ANCHOR_W,
+            h: ANCHOR_H,
+        })),
+    ],
+    SCATTER_H,
+    SCATTER_PAD,
+);
+
+// Placed at a point already decided: the pinned gifs on either screen.
+function pinned(urls: Record<string, string>, path: string, cls: string, x: number, y: number) {
+    const img = document.createElement("img");
+    img.alt = "";
+    img.className = cls;
+    img.style.left = `${x}px`;
+    img.style.top = `${y}px`;
+    img.src = urls[path];
+    return img;
+}
+
+// Placed wherever the screen's scatterer puts it, which cannot be worked out
+// until the image has loaded. Reserving a worst-case width for every gif would
+// crowd the stage -- most of these are near-square and only one or two are
+// wide, so a one-size box forces overlaps that the real widths do not. So each
+// gif places itself on load; they already appear one by one as they download.
+// Hidden until then, otherwise it would sit in the top-left corner meanwhile.
+function scattered(
+    urls: Record<string, string>,
+    path: string,
+    h: number,
+    place: (w: number) => Rect,
+) {
+    const img = document.createElement("img");
+    img.alt = "";
+    img.style.visibility = "hidden";
+    // Listener before src: a cached image can be complete the moment src is
+    // assigned, and load would have nothing attached to fire at.
+    img.addEventListener("load", () => {
+        const spot = place(h * (img.naturalWidth / img.naturalHeight));
+        img.style.left = `${spot.x + spot.w / 2}px`;
+        img.style.top = `${spot.y + spot.h / 2}px`;
+        img.style.visibility = "visible";
+    }, { once: true });
+    img.src = urls[path];
+    return img;
+}
+
+for (const [path, cx] of menuAnchors) {
+    menuGifs.append(pinned(MENU_GIFS, path, "ring-anchor", cx, ANCHOR_CY));
+}
+for (const path of menuLoose) {
+    menuGifs.append(scattered(MENU_GIFS, path, SCATTER_H, menuScatter));
+}
+
+// Every gif in gifs/restart/ goes on the game-over screen, globbed the same
+// way as the menu's so dropping a file in that folder is the whole change.
+const RESTART_GIFS = import.meta.glob("../gifs/restart/*.gif", {
+    eager: true,
+    query: "?url",
+    import: "default",
+}) as Record<string, string>;
+
+// One gif is pinned to the top; the rest are scattered, same as the menu.
+// Named by file -- an unmatched name just leaves the top empty and lets that
+// gif scatter with the others.
+const RESTART_APEX = "toory-dudu-bubu-osita.gif";
+const RESTART_APEX_X = 700;
+const RESTART_APEX_Y = 155;
+// Its drawn box, from the .apex height and this gif's square shape. A number
+// rather than a measurement: the image has not loaded yet.
+const RESTART_APEX_SIZE = 290;
+
+const restartLoose: string[] = [];
+let restartApexPath: string | null = null;
+for (const path of Object.keys(RESTART_GIFS).sort()) {
+    if (basename(path) === RESTART_APEX) restartApexPath = path;
+    else restartLoose.push(path);
+}
+
+const restartScatter = makeScatter(
+    restartApexPath === null
+        ? [TEXT_BOX]
+        : [
+              TEXT_BOX,
+              {
+                  x: RESTART_APEX_X - RESTART_APEX_SIZE / 2,
+                  y: RESTART_APEX_Y - RESTART_APEX_SIZE / 2,
+                  w: RESTART_APEX_SIZE,
+                  h: RESTART_APEX_SIZE,
+              },
+          ],
+    RESTART_SCATTER_H,
+    RESTART_SCATTER_PAD,
+);
+
+if (restartApexPath !== null) {
+    restartGifs.append(
+        pinned(RESTART_GIFS, restartApexPath, "apex", RESTART_APEX_X, RESTART_APEX_Y),
+    );
+}
+for (const path of restartLoose) {
+    restartGifs.append(scattered(RESTART_GIFS, path, RESTART_SCATTER_H, restartScatter));
+}
 
 const canvas = document.createElement("canvas");
 // Before the GIFs so they stay the upper layers.
-stage.insertBefore(canvas, menuGif);
-canvas.width = 1400;
-canvas.height = 800;
+stage.insertBefore(canvas, menuGifs);
+canvas.width = STAGE_W;
+canvas.height = STAGE_H;
 const ctx = canvas.getContext("2d")!;
 
 // CONSTANTS
@@ -26,9 +245,11 @@ const DUDU_H = 170;
 const BUBU_SIZE = 120;
 const FUDU_SIZE = 70;
 
-// Dudu alternates between its two sheets on this cadence, in seconds.
+// Dudu cycles through its sheets on this cadence, in seconds. Listed by hand
+// rather than by name prefix: the sheets are named after their source gifs,
+// which share no prefix, and the list order is the order they play in.
 const DUDU_SWITCH = 3;
-const DUDU_SHEETS = ["dudu1", "dudu2"] as const satisfies readonly SheetName[];
+const DUDU_SHEETS = ["dudu1", "dudu2", "dancing-animated"] as const satisfies readonly SheetName[];
 const sheetsNamed = (prefix: string) =>
     (Object.keys(SHEETS) as SheetName[]).filter((name) => name.startsWith(prefix));
 const BUBU_SHEETS = sheetsNamed("bubu");
@@ -101,8 +322,8 @@ function startGame() {
 }
 
 function showScreenGifs(state: GameState) {
-    menuGif.style.display = state === "menu" ? "block" : "none";
-    restartGif.style.display = state === "gameOver" ? "block" : "none";
+    menuGifs.style.display = state === "menu" ? "block" : "none";
+    restartGifs.style.display = state === "gameOver" ? "block" : "none";
 }
 
 function drawMenu() {

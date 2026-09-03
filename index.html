@@ -13,28 +13,53 @@
         width: 1400px;
         height: 800px;
       }
-      .screen-gif {
+      /* Every gif in gifs/menu/. Two are pinned to the sides of the title and
+         the rest are scattered at random; main.ts does all the positioning,
+         since it is the only place that knows how many gifs there are. Here we
+         only say that they float and how big they get. Each is centred on its
+         point, hence the translate. */
+      #menu-gifs {
         position: absolute;
-        left: 50%;
-        transform: translateX(-50%);
+        inset: 0;
         pointer-events: none; /* clicks must reach the canvas underneath */
       }
-      /* Both sit above the canvas title text, which starts around y=340. */
-      #menu-gif {
-        top: 40px;
-        height: 300px; /* 211x374 portrait -> 169 wide */
+      #menu-gifs img {
+        position: absolute;
+        height: 135px; /* widths follow each gif's own aspect ratio */
+        transform: translate(-50%, -50%);
       }
-      #restart-gif {
-        top: 60px;
-        height: 260px; /* 474x265 landscape -> 465 wide */
+      /* The two gifs pinned to the sides of the title, sized to anchor the
+         layout. main.ts decides which those are and hangs this class on them. */
+      #menu-gifs img.ring-anchor {
+        height: 400px;
+      }
+      /* Every gif in gifs/restart/. One is pinned to the top and the rest are
+         scattered at random; main.ts does all the positioning, since it is the
+         only place that knows how many gifs there are. Here we only say that
+         they float and how big they get. Each is centred on its point, hence
+         the translate. */
+      #restart-gifs {
+        position: absolute;
+        inset: 0;
         display: none; /* the game opens on the menu */
+        pointer-events: none; /* clicks must reach the canvas underneath */
+      }
+      #restart-gifs img {
+        position: absolute;
+        height: 200px; /* widths follow each gif's own aspect ratio */
+        transform: translate(-50%, -50%);
+      }
+      /* The one gif pinned to the top of the screen, drawn larger than the
+         scattered rest. main.ts hangs this class on it. */
+      #restart-gifs img.apex {
+        height: 290px;
       }
     </style>
   </head>
   <body>
     <div id="stage">
-      <img id="menu-gif" class="screen-gif" src="gifs/menu.gif" alt="" />
-      <img id="restart-gif" class="screen-gif" src="gifs/restart.gif" alt="" />
+      <div id="menu-gifs"></div>
+      <div id="restart-gifs"></div>
     </div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
