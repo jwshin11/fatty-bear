@@ -275,6 +275,12 @@ for (const name of Object.keys(SHEETS) as SheetName[]) {
     sheetImages.set(name, img);
 }
 
+const audio = {
+    shoot: new Audio("sounds/pew.mp3"),
+    atata: new Audio("sounds/atata.mp3"),
+    dudu_sorry: new Audio("sounds/dudu-sorry.mp3")
+}
+
 // One frame of a sheet, standing on the row's feet line with its left edge at
 // x. `t` is that sprite's own age in seconds, so entities animate on separate
 // clocks rather than in lockstep. Nothing is drawn until the image has
@@ -289,6 +295,14 @@ function drawSprite(name: SheetName, x: number, r: number, h: number, t: number)
     ctx.drawImage(img, frame * sheet.w, 0, sheet.w, sheet.h, x, rowY(r, h), w, h);
 }
 
+function playSound(sound: HTMLAudioElement) {
+    sound.currentTime = 0;
+    sound.play();
+}
+
+audio.atata.loop = true;
+audio.atata.volume = 0.5;
+
 window.addEventListener("keydown", function(event) {
     if (state !== "playing") return;
     if (event.code !== "ArrowUp" && event.code !== "ArrowDown" && event.code !== "Space") return;
@@ -298,6 +312,7 @@ window.addEventListener("keydown", function(event) {
     if (event.code == "Space") {
         const fudu = new Fudu(TABLE_END - 50, row, ctx);
         fudus.push(fudu);
+        playSound(audio.shoot);
         return;
     }
     const dir = event.code === "ArrowUp" ? -1 : 1;
@@ -319,6 +334,7 @@ function startGame() {
     duduTime = 0;
     last = performance.now();
     state = "playing";
+    audio.dudu_sorry.pause();
 }
 
 function showScreenGifs(state: GameState) {
@@ -464,6 +480,7 @@ function addBubu() {
     const randomRow = Math.floor(Math.random()*4);
     const bubu = new Bubu(canvas.width, randomRow, ctx);
     bubus.push(bubu);
+    audio.atata.play();
 }
 
 function draw(now: number) {
@@ -482,6 +499,8 @@ function draw(now: number) {
     } else if (state === "gameOver") {
         erase();
         drawGameOver();
+        audio.atata.pause();
+        audio.dudu_sorry.play();
         window.requestAnimationFrame(draw);
         return;
     }
