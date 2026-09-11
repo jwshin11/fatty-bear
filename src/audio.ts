@@ -1,5 +1,5 @@
-// Set to false to bring sound effects back.
-const MUTED = true;
+// Flip to true to silence all sound effects.
+const MUTED = false;
 
 export const audio = {
     shoot: new Audio("sounds/pew.mp3"),
