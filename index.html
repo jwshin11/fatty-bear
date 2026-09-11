@@ -6,31 +6,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Fatty Bear</title>
     <style>
-      /* The canvas and the screen GIFs are stacked layers of the same 800x800
-         box. The GIFs animate in the DOM, which canvas 2d can't do on its own. */
+      /* The canvas covers the whole stage: a 70px HUD band holding the feed
+         meter, with the 800px playfield below it. The GIF layers cover only the
+         playfield. The GIFs animate in the DOM, which canvas 2d can't do. */
       #stage {
         position: relative;
         width: 1400px;
-        height: 800px;
+        height: 870px;
       }
       /* The gifs of gifs/menu/ and gifs/restart/, one layer each. All the
          positioning and sizing comes from the tables in src/menuLayout.ts and
          src/restartLayout.ts -- they are the only place that knows where each
          gif goes. Here we only say that the layers float over the canvas. */
       #menu-gifs,
-      #restart-gifs {
+      #restart-gifs,
+      #complete-gifs {
         position: absolute;
         inset: 0;
+        /* top is set from HUD_H in src/main.ts */
         pointer-events: none; /* clicks must reach the canvas underneath */
       }
-      #restart-gifs {
+      #restart-gifs,
+      #complete-gifs {
         display: none; /* the game opens on the menu */
       }
       /* Each gif is centred on the point its table gives it, hence the
          translate. Heights are set inline, per gif; widths follow each gif's
          own aspect ratio. */
       #menu-gifs img,
-      #restart-gifs img {
+      #restart-gifs img,
+      #complete-gifs img {
         position: absolute;
         transform: translate(-50%, -50%);
       }
@@ -40,6 +45,7 @@
     <div id="stage">
       <div id="menu-gifs"></div>
       <div id="restart-gifs"></div>
+      <div id="complete-gifs"></div>
     </div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>

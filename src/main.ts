@@ -1,20 +1,29 @@
 import { mountMenuGifs } from "./menuLayout";
 import { mountRestartGifs } from "./restartLayout";
+import { mountCompleteGifs } from "./completeLayout";
 import { canvas } from "./renderer";
-import { erase, drawMenu, drawGameOver } from "./screens";
+import { erase, drawMenu, drawGameOver, drawWin, drawMeter } from "./screens";
 import { Bubu, Fudu, drawDudu } from "./entities";
 import { audio, playSound } from "./audio";
-import { STAGE_H, TABLE_END, DUDU_MIN, DUDU_MAX, DUDU_H, DUDU_SPEED, BUBU_SIZE, FUDU_SIZE } from "./constants";
+import { HUD_H, BUBU_Y_MIN, BUBU_Y_MAX, TABLE_END, DUDU_MIN, DUDU_MAX, DUDU_H, DUDU_SPEED, BUBU_SIZE, FUDU_SIZE, FEED_GOAL } from "./constants";
 import type { GameState } from "./types";
 
 const stage = document.getElementById("stage")!;
 const menuGifs = document.getElementById("menu-gifs")!;
 const restartGifs = document.getElementById("restart-gifs")!;
+const completeGifs = document.getElementById("complete-gifs")!;
 
 mountMenuGifs(menuGifs);
 mountRestartGifs(restartGifs);
+mountCompleteGifs(completeGifs);
 
 stage.insertBefore(canvas, menuGifs);
+
+// Every gif table was laid out against the 800-tall playfield, so the layers
+// start where the playfield starts rather than at the top of the taller stage.
+menuGifs.style.top = `${HUD_H}px`;
+restartGifs.style.top = `${HUD_H}px`;
+completeGifs.style.top = `${HUD_H}px`;
 
 
 const KEYS = {
@@ -26,7 +35,8 @@ const KEYS = {
 let state: GameState = "menu";
 let last = performance.now();
 
-let dudu_y = 20;
+let dudu_y = DUDU_MIN;
+let fed = 0;
 let bubus: Bubu[] = [];
 let fudus: Fudu[] = [];
 
@@ -64,14 +74,15 @@ window.addEventListener("keyup", function(event) {
 
 
 canvas.addEventListener("click", function() {
-    if (state !== "menu" && state !== "gameOver") return;
+    if (state === "playing") return;
     startGame();
 });
 
 function startGame() {
     bubus = [];
     fudus = [];
-    dudu_y = 20;
+    dudu_y = DUDU_MIN;
+    fed = 0;
     elapsedTime = 0;
     interval = 1;
     duduTime = 0;
@@ -83,6 +94,7 @@ function startGame() {
 function showScreenGifs(state: GameState) {
     menuGifs.style.display = state === "menu" ? "block" : "none";
     restartGifs.style.display = state === "gameOver" ? "block" : "none";
+    completeGifs.style.display = state === "win" ? "block" : "none";
 }
 
 
@@ -91,7 +103,7 @@ function addBubu() {
 
     interval = Math.random()*2;
     elapsedTime = 0;
-    const randomY = Math.floor(Math.random()*STAGE_H - 50);
+    const randomY = BUBU_Y_MIN + Math.random() * (BUBU_Y_MAX - BUBU_Y_MIN);
     const bubu = new Bubu(canvas.width, randomY);
     bubus.push(bubu);
     audio.atata.play();
@@ -118,6 +130,12 @@ function draw(now: number) {
     if (state === "menu") {
         erase(state);
         drawMenu();
+        window.requestAnimationFrame(draw);
+        return;
+    } else if (state === "win") {
+        erase(state);
+        drawWin();
+        audio.atata.pause();
         window.requestAnimationFrame(draw);
         return;
     } else if (state === "gameOver") {
@@ -150,10 +168,17 @@ function draw(now: number) {
             if (collided(fudu, bubu)) {
                 fudu.eaten = true;
                 bubu.isFatty = true;
+                fed++;
                 break;
             }
 
         }
+    }
+
+    if (fed >= FEED_GOAL) {
+        state = "win";
+        window.requestAnimationFrame(draw);
+        return;
     }
 
     for (const bubu of bubus) {
@@ -173,6 +198,7 @@ function draw(now: number) {
     drawDudu(dudu_y, duduTime);
     for (const bubu of bubus) bubu.draw();
     for (const fudu of fudus) fudu.draw();
+    drawMeter(fed, duduTime, dt);
 
 
     window.requestAnimationFrame(draw);

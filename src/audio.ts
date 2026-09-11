@@ -1,3 +1,6 @@
+// Set to false to bring sound effects back.
+const MUTED = true;
+
 export const audio = {
     shoot: new Audio("sounds/pew.mp3"),
     atata: new Audio("sounds/atata.mp3"),
@@ -7,6 +10,10 @@ export const audio = {
 audio.atata.loop = true;
 audio.atata.volume = 0.5;
 audio.shoot.volume = 0.5;
+
+for (const sound of Object.values(audio)) {
+    sound.muted = MUTED;
+}
 
 export function playSound(sound: HTMLAudioElement) {
     sound.currentTime = 0;

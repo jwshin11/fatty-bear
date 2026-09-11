@@ -10,6 +10,7 @@ export const SHEETS = {
     "bubu5": { src: "sprites/bubu5.png", w: 239, h: 240, frames: 9, fps: 4.8 },
     "bubu6": { src: "sprites/bubu6.png", w: 176, h: 240, frames: 12, fps: 10.0 },
     "bubu7": { src: "sprites/bubu7.png", w: 208, h: 240, frames: 16, fps: 12.5 },
+    "goma-peach-bubu": { src: "sprites/goma-peach-bubu.png", w: 175, h: 240, frames: 25, fps: 20.0 },
     "dancing-animated": { src: "sprites/dancing-animated.png", w: 289, h: 340, frames: 10, fps: 20.0 },
     "dudu1": { src: "sprites/dudu1.png", w: 350, h: 340, frames: 18, fps: 10.5 },
     "dudu2": { src: "sprites/dudu2.png", w: 366, h: 340, frames: 7, fps: 8.3 },
